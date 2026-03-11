@@ -22,6 +22,36 @@ export function formatNumbersInText(text: string): string {
   })
 }
 
+export function formatGitIdentity(identity: string): string {
+  const match = identity.match(/^(.*) <([^>]+)> (\d{9,}) ([+-]\d{4})$/)
+  if (!match) {
+    return identity
+  }
+
+  const [, name, email, seconds, timezone] = match
+  const formattedDate = formatUnixTimestamp(Number(seconds))
+  return `${name} <${email}> • ${formattedDate} (${timezone})`
+}
+
+export function formatTimestampsInText(text: string): string {
+  return text.replace(
+    /([^\n]*<[^>]+>) (\d{9,}) ([+-]\d{4})/g,
+    (_full, identity, seconds, timezone) => {
+      const formattedDate = formatUnixTimestamp(Number(seconds))
+      return `${identity} • ${formattedDate} (${timezone})`
+    }
+  )
+}
+
+function formatUnixTimestamp(seconds: number): string {
+  const date = new Date(seconds * 1000)
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+    hour12: false,
+  }).format(date)
+}
+
 export function markdownInline(text: string): string {
   return text
     .replace(/&/g, '&amp;')

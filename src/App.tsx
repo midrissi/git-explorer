@@ -46,7 +46,7 @@ function App() {
           <div className="mt-8 space-y-6">
             <SummaryBar gitObj={gitObj} fileName={fileName} />
             <ExplanationCard explanations={explanations} />
-            <ObjectDetails gitObj={gitObj} />
+            <ObjectDetails gitObj={gitObj} fileName={fileName} />
           </div>
         )}
       </main>

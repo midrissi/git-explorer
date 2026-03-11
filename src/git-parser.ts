@@ -51,29 +51,115 @@ export async function parseGitObject(data: ArrayBuffer): Promise<GitObject> {
   return parseDecompressedObject(decompressed)
 }
 
+export async function buildGitObjectFile(
+  obj: GitObject,
+  options?: { includeCommitSignature?: boolean }
+): Promise<Uint8Array> {
+  const content = encodeObjectContent(obj, options)
+  const header = new TextEncoder().encode(`${obj.type} ${content.length}\0`)
+  const full = new Uint8Array(header.length + content.length)
+
+  full.set(header, 0)
+  full.set(content, header.length)
+
+  return compress(full)
+}
+
 async function decompress(data: Uint8Array): Promise<Uint8Array> {
-  const ds = new DecompressionStream('deflate')
-  const writer = ds.writable.getWriter()
-  writer.write(data as unknown as BufferSource)
-  writer.close()
+  const source = new Blob([toArrayBuffer(data)])
+  const stream = source.stream().pipeThrough(new DecompressionStream('deflate'))
+  const out = await new Response(stream).arrayBuffer()
+  return new Uint8Array(out)
+}
 
-  const reader = ds.readable.getReader()
-  const chunks: Uint8Array[] = []
+async function compress(data: Uint8Array): Promise<Uint8Array> {
+  const source = new Blob([toArrayBuffer(data)])
+  const stream = source.stream().pipeThrough(new CompressionStream('deflate'))
+  const out = await new Response(stream).arrayBuffer()
+  return new Uint8Array(out)
+}
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
+function toArrayBuffer(data: Uint8Array): ArrayBuffer {
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+}
+
+function encodeObjectContent(
+  obj: GitObject,
+  options?: { includeCommitSignature?: boolean }
+): Uint8Array {
+  if (obj.type === 'blob') {
+    return new TextEncoder().encode(obj.content)
   }
 
-  const totalLength = chunks.reduce((acc, c) => acc + c.length, 0)
-  const result = new Uint8Array(totalLength)
+  if (obj.type === 'tree') {
+    return encodeTree(obj)
+  }
+
+  if (obj.type === 'commit') {
+    const lines: string[] = []
+    lines.push(`tree ${obj.tree}`)
+    for (const parent of obj.parents) {
+      lines.push(`parent ${parent}`)
+    }
+    lines.push(`author ${obj.author}`)
+    lines.push(`committer ${obj.committer}`)
+    if (options?.includeCommitSignature && obj.gpgsig) {
+      lines.push(`gpgsig ${obj.gpgsig}`)
+    }
+    lines.push('')
+    lines.push(obj.message)
+    return new TextEncoder().encode(lines.join('\n'))
+  }
+
+  const tagLines = [
+    `object ${obj.object}`,
+    `type ${obj.tagType}`,
+    `tag ${obj.tagName}`,
+    `tagger ${obj.tagger}`,
+    '',
+    obj.message,
+  ]
+  return new TextEncoder().encode(tagLines.join('\n'))
+}
+
+function encodeTree(tree: GitTree): Uint8Array {
+  const chunks: Uint8Array[] = []
+  let total = 0
+
+  for (const entry of tree.entries) {
+    const prefix = new TextEncoder().encode(`${entry.mode} ${entry.name}`)
+    const nullByte = new Uint8Array([0])
+    const hashBytes = hexToBytes(entry.hash)
+    const chunk = new Uint8Array(prefix.length + nullByte.length + hashBytes.length)
+
+    chunk.set(prefix, 0)
+    chunk.set(nullByte, prefix.length)
+    chunk.set(hashBytes, prefix.length + 1)
+
+    chunks.push(chunk)
+    total += chunk.length
+  }
+
+  const out = new Uint8Array(total)
   let offset = 0
   for (const chunk of chunks) {
-    result.set(chunk, offset)
+    out.set(chunk, offset)
     offset += chunk.length
   }
-  return result
+
+  return out
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  if (!/^[0-9a-f]{40}$/i.test(hex)) {
+    throw new Error(`Invalid tree entry hash: ${hex}`)
+  }
+
+  const bytes = new Uint8Array(20)
+  for (let i = 0; i < 20; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
 }
 
 function parseDecompressedObject(data: Uint8Array): GitObject {
@@ -290,6 +376,8 @@ export function explainGitObject(obj: GitObject): string[] {
       explanations.push(`Committer: ${obj.committer}`)
       if (obj.gpgsig) {
         explanations.push(`GPG Signature: present (commit is signed)`)
+      } else {
+        explanations.push(`GPG Signature: not present (commit is not signed)`)
       }
       explanations.push(`Message: ${obj.message}`)
       explanations.push(

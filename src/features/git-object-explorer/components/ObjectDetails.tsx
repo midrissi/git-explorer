@@ -18,11 +18,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { CommitEditorCard } from '@/features/git-object-explorer/components/CommitEditorCard'
 import { DetailRow } from '@/features/git-object-explorer/components/DetailRow'
-import { formatNumber, shortHash } from '@/features/git-object-explorer/formatters'
+import {
+  formatGitIdentity,
+  formatNumber,
+  shortHash,
+} from '@/features/git-object-explorer/formatters'
 import type { GitObject } from '@/git-parser'
 
-export function ObjectDetails({ gitObj }: { gitObj: GitObject }) {
+export function ObjectDetails({
+  gitObj,
+  fileName,
+}: {
+  gitObj: GitObject
+  fileName?: string | null
+}) {
   if (gitObj.type === 'blob') {
     return (
       <Card>
@@ -84,61 +95,67 @@ export function ObjectDetails({ gitObj }: { gitObj: GitObject }) {
 
   if (gitObj.type === 'commit') {
     return (
-      <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <GitCommitHorizontal className="h-4 w-4 text-amber-500" />
-            Commit Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <DetailRow
-            label="Tree"
-            value={shortHash(gitObj.tree)}
-            mono
-            icon={<GitBranch className="h-4 w-4 text-sky-500" />}
-          />
-          {gitObj.parents.map((p, i) => (
+      <div className="space-y-4">
+        <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GitCommitHorizontal className="h-4 w-4 text-amber-500" />
+              Commit Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
             <DetailRow
-              key={p}
-              label={`Parent${gitObj.parents.length > 1 ? ` ${i + 1}` : ''}`}
-              value={shortHash(p)}
+              label="Tree"
+              value={shortHash(gitObj.tree)}
               mono
-              icon={<GitCommitHorizontal className="h-4 w-4 text-orange-500" />}
+              icon={<GitBranch className="h-4 w-4 text-sky-500" />}
             />
-          ))}
-          <DetailRow
-            label="Author"
-            value={gitObj.author}
-            icon={<UserCircle2 className="h-4 w-4 text-emerald-500" />}
-          />
-          <DetailRow
-            label="Committer"
-            value={gitObj.committer}
-            icon={<CalendarClock className="h-4 w-4 text-indigo-500" />}
-          />
-          {gitObj.gpgsig && (
+            {gitObj.parents.map((p, i) => (
+              <DetailRow
+                key={p}
+                label={`Parent${gitObj.parents.length > 1 ? ` ${i + 1}` : ''}`}
+                value={shortHash(p)}
+                mono
+                icon={<GitCommitHorizontal className="h-4 w-4 text-orange-500" />}
+              />
+            ))}
+            <DetailRow
+              label="Author"
+              value={formatGitIdentity(gitObj.author)}
+              icon={<UserCircle2 className="h-4 w-4 text-emerald-500" />}
+            />
+            <DetailRow
+              label="Committer"
+              value={formatGitIdentity(gitObj.committer)}
+              icon={<CalendarClock className="h-4 w-4 text-indigo-500" />}
+            />
             <DetailRow
               label="GPG Sig"
               value={
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  Verified signature present
-                </span>
+                gitObj.gpgsig ? (
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    Signed
+                  </span>
+                ) : (
+                  <span className="font-semibold text-rose-600 dark:text-rose-400">Not signed</span>
+                )
               }
               icon={<Signature className="h-4 w-4 text-violet-500" />}
             />
-          )}
-          <div className="mt-3 border-t pt-3">
-            <span className="inline-flex items-center gap-2 text-muted-foreground text-sm">
-              <FileCode2 className="h-4 w-4 text-primary" />
-              Message
-            </span>
-            <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-amber-500/30 bg-muted/80 p-3 font-mono text-sm">
-              {gitObj.message}
-            </pre>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="mt-3 border-t pt-3">
+              <span className="inline-flex items-center gap-2 text-muted-foreground text-sm">
+                <FileCode2 className="h-4 w-4 text-primary" />
+                Message
+              </span>
+              <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-amber-500/30 bg-muted/80 p-3 font-mono text-sm">
+                {gitObj.message}
+              </pre>
+            </div>
+          </CardContent>
+        </Card>
+
+        <CommitEditorCard commit={gitObj} fileName={fileName} />
+      </div>
     )
   }
 
