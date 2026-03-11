@@ -5,6 +5,7 @@ export interface GitBlob {
   type: 'blob'
   size: number
   content: string
+  bytes?: Uint8Array
 }
 
 export interface TreeEntry {
@@ -88,6 +89,9 @@ function encodeObjectContent(
   options?: { includeCommitSignature?: boolean }
 ): Uint8Array {
   if (obj.type === 'blob') {
+    if (obj.bytes) {
+      return obj.bytes
+    }
     return new TextEncoder().encode(obj.content)
   }
 
@@ -198,6 +202,7 @@ function parseBlob(size: number, content: Uint8Array): GitBlob {
     type: 'blob',
     size,
     content: new TextDecoder().decode(content),
+    bytes: content,
   }
 }
 

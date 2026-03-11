@@ -1,14 +1,21 @@
 import {
   Binary,
   CalendarClock,
+  Download,
   FileCode2,
+  FileQuestion,
   GitBranch,
   GitCommitHorizontal,
+  Image,
   KeyRound,
+  ScrollText,
   Signature,
   Tag,
   UserCircle2,
 } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { materialOceanic } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -25,7 +32,7 @@ import {
   formatNumber,
   shortHash,
 } from '@/features/git-object-explorer/formatters'
-import type { GitObject } from '@/git-parser'
+import type { GitBlob, GitObject } from '@/git-parser'
 
 export function ObjectDetails({
   gitObj,
@@ -36,19 +43,7 @@ export function ObjectDetails({
 }) {
   if (gitObj.type === 'blob') {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileCode2 className="h-4 w-4 text-emerald-500" />
-            File Content
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-96 overflow-x-auto overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted p-4 font-mono text-sm">
-            {gitObj.content}
-          </pre>
-        </CardContent>
-      </Card>
+      <BlobContentCard blob={gitObj} fileName={fileName} />
     )
   }
 
@@ -201,4 +196,319 @@ export function ObjectDetails({
       </CardContent>
     </Card>
   )
+}
+
+function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string | null }) {
+  const bytes = blob.bytes ?? new TextEncoder().encode(blob.content)
+  const type = detectBlobType(bytes, fileName)
+  const extension = type.extension || extensionFromName(fileName) || 'bin'
+  const downloadName = buildDownloadName(fileName, extension)
+  const blobUrl = useMemo(() => {
+    const arrayBuffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength
+    ) as ArrayBuffer
+    return URL.createObjectURL(new Blob([arrayBuffer], { type: type.mime }))
+  }, [bytes, type.mime])
+
+  useEffect(() => {
+    return () => {
+      URL.revokeObjectURL(blobUrl)
+    }
+  }, [blobUrl])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {type.kind === 'image' ? (
+            <Image className="h-4 w-4 text-emerald-500" />
+          ) : type.kind === 'pdf' ? (
+            <ScrollText className="h-4 w-4 text-rose-500" />
+          ) : type.kind === 'text' ? (
+            <FileCode2 className="h-4 w-4 text-emerald-500" />
+          ) : (
+            <FileQuestion className="h-4 w-4 text-amber-500" />
+          )}
+          File Content
+        </CardTitle>
+        <CardDescription>
+          {type.label}
+          {type.extension ? ` (.${type.extension})` : ''}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 overflow-hidden">
+        {type.kind === 'image' && (
+          <div className="overflow-hidden rounded-lg border border-border/60 bg-muted/30 p-2">
+            <img src={blobUrl} alt="Blob preview" className="max-h-[500px] w-full object-contain" />
+          </div>
+        )}
+
+        {type.kind === 'pdf' && (
+          <div className="h-[500px] overflow-hidden rounded-lg border border-border/60 bg-muted/30">
+            <iframe src={blobUrl} title="PDF preview" className="h-full w-full" />
+          </div>
+        )}
+
+        {type.kind === 'text' && (
+          <div className="overflow-hidden rounded-lg border border-border/60">
+            <div className="flex items-center justify-between border-border/60 border-b bg-muted/40 px-3 py-1.5">
+              <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                Syntax Highlight
+              </span>
+              <span className="font-mono text-muted-foreground text-xs">
+                {detectLanguage(fileName, blob.content)}
+              </span>
+            </div>
+            <div className="max-h-[min(70vh,34rem)] overflow-auto">
+              <SyntaxHighlighter
+                language={detectLanguage(fileName, blob.content)}
+                style={materialOceanic}
+                showLineNumbers={false}
+                wrapLongLines={false}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: 0,
+                  background: 'rgb(18 24 34)',
+                  fontSize: '0.8rem',
+                  minWidth: 'max-content',
+                }}
+              >
+                {blob.content}
+              </SyntaxHighlighter>
+            </div>
+          </div>
+        )}
+
+        {type.kind === 'unknown' && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-muted-foreground text-sm">
+            Unknown/binary content. Preview is not available. Download the file and open it with a
+            suitable app.
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={blobUrl}
+            download={downloadName}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            <Download className="h-4 w-4" />
+            Download {downloadName}
+          </a>
+          {type.kind === 'unknown' && (
+            <span className="text-muted-foreground text-xs">
+              Suggested extension: .{extension}
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function detectBlobType(
+  bytes: Uint8Array,
+  fileName?: string | null
+): { kind: 'text' | 'image' | 'pdf' | 'unknown'; mime: string; extension?: string; label: string } {
+  const nameExt = extensionFromName(fileName)
+
+  if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47])) {
+    return { kind: 'image', mime: 'image/png', extension: 'png', label: 'PNG image' }
+  }
+  if (startsWith(bytes, [0xff, 0xd8, 0xff])) {
+    return { kind: 'image', mime: 'image/jpeg', extension: 'jpg', label: 'JPEG image' }
+  }
+  if (startsWith(bytes, [0x47, 0x49, 0x46, 0x38])) {
+    return { kind: 'image', mime: 'image/gif', extension: 'gif', label: 'GIF image' }
+  }
+  if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && toAscii(bytes.slice(8, 12)) === 'WEBP') {
+    return { kind: 'image', mime: 'image/webp', extension: 'webp', label: 'WebP image' }
+  }
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46])) {
+    return { kind: 'pdf', mime: 'application/pdf', extension: 'pdf', label: 'PDF document' }
+  }
+
+  const textHead = new TextDecoder().decode(bytes.slice(0, Math.min(bytes.length, 256))).trimStart()
+  if (textHead.startsWith('<svg')) {
+    return { kind: 'image', mime: 'image/svg+xml', extension: 'svg', label: 'SVG image' }
+  }
+
+  if (nameExt && TEXT_EXTENSIONS.has(nameExt)) {
+    return { kind: 'text', mime: mimeFromExtension(nameExt), extension: nameExt, label: 'Text file' }
+  }
+
+  if (looksLikeText(bytes)) {
+    return { kind: 'text', mime: 'text/plain;charset=utf-8', extension: nameExt || 'txt', label: 'Text file' }
+  }
+
+  return {
+    kind: 'unknown',
+    mime: 'application/octet-stream',
+    extension: nameExt || guessExtensionFromMagic(bytes) || 'bin',
+    label: 'Unknown binary file',
+  }
+}
+
+const TEXT_EXTENSIONS = new Set([
+  'txt',
+  'md',
+  'json',
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'css',
+  'html',
+  'xml',
+  'yml',
+  'yaml',
+  'sh',
+  'py',
+  'java',
+  'go',
+  'rs',
+  'c',
+  'cpp',
+  'h',
+  'sql',
+])
+
+function startsWith(bytes: Uint8Array, sig: number[]): boolean {
+  if (bytes.length < sig.length) {
+    return false
+  }
+  return sig.every((v, i) => bytes[i] === v)
+}
+
+function toAscii(bytes: Uint8Array): string {
+  return String.fromCharCode(...Array.from(bytes))
+}
+
+function extensionFromName(fileName?: string | null): string | null {
+  if (!fileName || !fileName.includes('.')) {
+    return null
+  }
+  return fileName.split('.').pop()?.toLowerCase() || null
+}
+
+function looksLikeText(bytes: Uint8Array): boolean {
+  const sample = bytes.slice(0, Math.min(bytes.length, 1024))
+  if (sample.length === 0) {
+    return true
+  }
+
+  let suspicious = 0
+  for (const b of sample) {
+    if (b === 9 || b === 10 || b === 13) {
+      continue
+    }
+    if (b >= 32 && b <= 126) {
+      continue
+    }
+    if (b >= 160) {
+      continue
+    }
+    suspicious++
+  }
+
+  return suspicious / sample.length < 0.08
+}
+
+function mimeFromExtension(ext: string): string {
+  switch (ext) {
+    case 'json':
+      return 'application/json'
+    case 'html':
+      return 'text/html'
+    case 'xml':
+      return 'application/xml'
+    case 'css':
+      return 'text/css'
+    case 'js':
+      return 'text/javascript'
+    default:
+      return 'text/plain;charset=utf-8'
+  }
+}
+
+function guessExtensionFromMagic(bytes: Uint8Array): string | null {
+  if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47])) return 'png'
+  if (startsWith(bytes, [0xff, 0xd8, 0xff])) return 'jpg'
+  if (startsWith(bytes, [0x47, 0x49, 0x46, 0x38])) return 'gif'
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46])) return 'pdf'
+  return null
+}
+
+function buildDownloadName(fileName: string | null | undefined, extension: string): string {
+  if (fileName) {
+    const base = fileName.replace(/[^a-zA-Z0-9._/-]/g, '_')
+    if (base.includes('.')) {
+      return base
+    }
+    return `${base}.${extension}`
+  }
+  return `blob-content.${extension}`
+}
+
+function detectLanguage(fileName: string | null | undefined, content: string): string {
+  const ext = extensionFromName(fileName)
+  if (!ext) {
+    return detectLanguageFromContent(content)
+  }
+
+  switch (ext) {
+    case 'ts':
+      return 'typescript'
+    case 'tsx':
+      return 'tsx'
+    case 'js':
+      return 'javascript'
+    case 'jsx':
+      return 'jsx'
+    case 'json':
+      return 'json'
+    case 'md':
+      return 'markdown'
+    case 'css':
+      return 'css'
+    case 'html':
+      return 'html'
+    case 'xml':
+      return 'xml'
+    case 'yml':
+    case 'yaml':
+      return 'yaml'
+    case 'sh':
+      return 'bash'
+    case 'py':
+      return 'python'
+    case 'java':
+      return 'java'
+    case 'go':
+      return 'go'
+    case 'rs':
+      return 'rust'
+    case 'sql':
+      return 'sql'
+    default:
+      return detectLanguageFromContent(content)
+  }
+}
+
+function detectLanguageFromContent(content: string): string {
+  const head = content.slice(0, 400)
+  if (head.trimStart().startsWith('{') || head.trimStart().startsWith('[')) {
+    return 'json'
+  }
+  if (/^#!.*\b(bash|sh|zsh)\b/m.test(head)) {
+    return 'bash'
+  }
+  if (/^#!.*\bpython\b/m.test(head)) {
+    return 'python'
+  }
+  if (/<\/?[a-z][\s\S]*>/i.test(head)) {
+    return 'html'
+  }
+  return 'text'
 }

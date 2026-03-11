@@ -8,14 +8,17 @@ export function DropZoneCard({
   onDragOver,
   onDragLeave,
   onFileInput,
+  onDirectoryInput,
 }: {
   isDragging: boolean
   onDrop: (e: React.DragEvent) => void
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: () => void
   onFileInput: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onDirectoryInput: (e: React.ChangeEvent<HTMLInputElement>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const dirInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <Card
@@ -39,14 +42,22 @@ export function DropZoneCard({
           onChange={onFileInput}
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
+        <input
+          ref={dirInputRef}
+          type="file"
+          multiple
+          onChange={onDirectoryInput}
+          className="hidden"
+          {...({ webkitdirectory: '' } as Record<string, string>)}
+        />
         <div className="space-y-3">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-primary/25 bg-primary/15">
             <FolderGit2 className="h-7 w-7 text-primary" />
           </div>
           <p className="font-medium text-foreground text-lg">
-            Drag &amp; drop a git object file here
+            Drag &amp; drop a git object file or .git folder here
           </p>
-          <p className="text-muted-foreground text-sm">or click to browse</p>
+          <p className="text-muted-foreground text-sm">or click to browse a file or folder</p>
         </div>
       </button>
     </Card>

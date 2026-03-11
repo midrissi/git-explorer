@@ -2,6 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DropZoneCard } from '@/features/git-object-explorer/components/DropZoneCard'
 import { ExplanationCard } from '@/features/git-object-explorer/components/ExplanationCard'
 import { Hero } from '@/features/git-object-explorer/components/Hero'
+import { ObjectBrowserCard } from '@/features/git-object-explorer/components/ObjectBrowserCard'
 import { ObjectDetails } from '@/features/git-object-explorer/components/ObjectDetails'
 import { SummaryBar } from '@/features/git-object-explorer/components/SummaryBar'
 import { TopBar } from '@/features/git-object-explorer/components/TopBar'
@@ -9,10 +10,25 @@ import { useGitObjectFile } from '@/features/git-object-explorer/useGitObjectFil
 import { explainGitObject } from '@/git-parser'
 
 function App() {
-  const { gitObj, error, isDragging, fileName, onDrop, onDragOver, onDragLeave, onFileInput } =
-    useGitObjectFile()
+  const {
+    gitObj,
+    error,
+    isDragging,
+    fileName,
+    objectEntries,
+    selectedFolder,
+    selectedObjectId,
+    onDrop,
+    onDragOver,
+    onDragLeave,
+    onFileInput,
+    onDirectoryInput,
+    onSelectObject,
+    setSelectedFolder,
+  } = useGitObjectFile()
 
   const explanations = gitObj ? explainGitObject(gitObj) : []
+  const hasExplorer = objectEntries.length > 0
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -24,7 +40,7 @@ function App() {
 
       <TopBar />
 
-      <main className="mx-auto max-w-4xl px-4 py-10">
+      <main className="mx-auto max-w-7xl px-4 py-10">
         <Hero />
 
         <DropZoneCard
@@ -33,6 +49,7 @@ function App() {
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onFileInput={onFileInput}
+          onDirectoryInput={onDirectoryInput}
         />
 
         {error && (
@@ -42,12 +59,43 @@ function App() {
           </Alert>
         )}
 
-        {gitObj && (
-          <div className="mt-8 space-y-6">
-            <SummaryBar gitObj={gitObj} fileName={fileName} />
-            <ExplanationCard explanations={explanations} />
-            <ObjectDetails gitObj={gitObj} fileName={fileName} />
+        {hasExplorer ? (
+          <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[380px_1fr]">
+            <div className="xl:sticky xl:top-20 xl:h-[calc(100vh-6rem)] xl:overflow-hidden">
+              <ObjectBrowserCard
+                entries={objectEntries}
+                selectedFolder={selectedFolder}
+                selectedObjectId={selectedObjectId}
+                onSelectFolder={setSelectedFolder}
+                onSelectObject={onSelectObject}
+              />
+            </div>
+
+            <div className="space-y-6 overflow-hidden px-1">
+              {gitObj ? (
+                <>
+                  <SummaryBar gitObj={gitObj} fileName={fileName} />
+                  <ExplanationCard explanations={explanations} />
+                  <ObjectDetails gitObj={gitObj} fileName={fileName} />
+                </>
+              ) : (
+                <Alert>
+                  <AlertTitle>Select an object</AlertTitle>
+                  <AlertDescription>
+                    Choose a node in the left tree to parse and view details.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
           </div>
+        ) : (
+          gitObj && (
+            <div className="mt-8 space-y-6">
+              <SummaryBar gitObj={gitObj} fileName={fileName} />
+              <ExplanationCard explanations={explanations} />
+              <ObjectDetails gitObj={gitObj} fileName={fileName} />
+            </div>
+          )
         )}
       </main>
     </div>
