@@ -24,19 +24,71 @@ const CONVENTIONAL_TYPES = new Set([
 ])
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  feat: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/30' },
-  fix: { bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-500/30' },
-  docs: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/30' },
-  style: { bg: 'bg-purple-500/10', text: 'text-purple-600 dark:text-purple-400', border: 'border-purple-500/30' },
-  refactor: { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', border: 'border-orange-500/30' },
-  perf: { bg: 'bg-cyan-500/10', text: 'text-cyan-600 dark:text-cyan-400', border: 'border-cyan-500/30' },
-  test: { bg: 'bg-indigo-500/10', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-500/30' },
-  build: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/30' },
-  ci: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/30' },
-  chore: { bg: 'bg-gray-500/10', text: 'text-gray-600 dark:text-gray-400', border: 'border-gray-500/30' },
-  revert: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', border: 'border-red-500/30' },
-  wip: { bg: 'bg-yellow-500/10', text: 'text-yellow-600 dark:text-yellow-400', border: 'border-yellow-500/30' },
-  deprecate: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', border: 'border-red-500/30' },
+  feat: {
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    border: 'border-emerald-500/30',
+  },
+  fix: {
+    bg: 'bg-rose-500/10',
+    text: 'text-rose-600 dark:text-rose-400',
+    border: 'border-rose-500/30',
+  },
+  docs: {
+    bg: 'bg-blue-500/10',
+    text: 'text-blue-600 dark:text-blue-400',
+    border: 'border-blue-500/30',
+  },
+  style: {
+    bg: 'bg-purple-500/10',
+    text: 'text-purple-600 dark:text-purple-400',
+    border: 'border-purple-500/30',
+  },
+  refactor: {
+    bg: 'bg-orange-500/10',
+    text: 'text-orange-600 dark:text-orange-400',
+    border: 'border-orange-500/30',
+  },
+  perf: {
+    bg: 'bg-cyan-500/10',
+    text: 'text-cyan-600 dark:text-cyan-400',
+    border: 'border-cyan-500/30',
+  },
+  test: {
+    bg: 'bg-indigo-500/10',
+    text: 'text-indigo-600 dark:text-indigo-400',
+    border: 'border-indigo-500/30',
+  },
+  build: {
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-600 dark:text-amber-400',
+    border: 'border-amber-500/30',
+  },
+  ci: {
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-600 dark:text-amber-400',
+    border: 'border-amber-500/30',
+  },
+  chore: {
+    bg: 'bg-gray-500/10',
+    text: 'text-gray-600 dark:text-gray-400',
+    border: 'border-gray-500/30',
+  },
+  revert: {
+    bg: 'bg-red-500/10',
+    text: 'text-red-600 dark:text-red-400',
+    border: 'border-red-500/30',
+  },
+  wip: {
+    bg: 'bg-yellow-500/10',
+    text: 'text-yellow-600 dark:text-yellow-400',
+    border: 'border-yellow-500/30',
+  },
+  deprecate: {
+    bg: 'bg-red-500/10',
+    text: 'text-red-600 dark:text-red-400',
+    border: 'border-red-500/30',
+  },
 }
 
 const DEFAULT_COLORS = { bg: 'bg-primary/10', text: 'text-primary', border: 'border-primary/30' }

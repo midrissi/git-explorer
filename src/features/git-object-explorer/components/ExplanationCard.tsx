@@ -16,12 +16,66 @@ import {
   shortenHashesInText,
 } from '@/features/git-object-explorer/formatters'
 
-export function ExplanationCard({ explanations }: { explanations: string[] }) {
+export function ExplanationCard({
+  explanations,
+  onHashClick,
+}: {
+  explanations: string[]
+  onHashClick?: (hash: string) => void
+}) {
   const seen = new Map<string, number>()
   const intro: React.ReactNode[] = []
   const facts: React.ReactNode[] = []
   const bullets: React.ReactNode[] = []
   const notes: React.ReactNode[] = []
+
+  const renderInlineMarkdown = (text: string): React.ReactNode => {
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|[0-9a-f]{7}(?!\w))/gi)
+
+    let cursor = 0
+    return parts.map((part) => {
+      const start = cursor
+      cursor += part.length
+      const keyBase = `${start}-${part}`
+
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const boldText = part.slice(2, -2)
+        return (
+          <strong key={`b-${keyBase}`} className="text-foreground">
+            {boldText}
+          </strong>
+        )
+      }
+
+      if (part.startsWith('`') && part.endsWith('`')) {
+        const codeText = part.slice(1, -1)
+        return (
+          <code
+            key={`c-${keyBase}`}
+            className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary text-sm"
+          >
+            {codeText}
+          </code>
+        )
+      }
+
+      if (/^[0-9a-f]{7}$/i.test(part) && onHashClick) {
+        return (
+          <button
+            key={`h-${keyBase}`}
+            type="button"
+            onClick={() => onHashClick(part)}
+            className="cursor-pointer font-mono text-sky-500 underline decoration-dotted transition-colors hover:text-sky-400"
+            title={`Open object ${part}`}
+          >
+            {part}
+          </button>
+        )
+      }
+
+      return <span key={`t-${keyBase}`}>{part}</span>
+    })
+  }
 
   for (const line of explanations) {
     const normalized = formatNumbersInText(formatTimestampsInText(shortenHashesInText(line)))
@@ -141,33 +195,4 @@ function factIcon(label: string, value: string): React.ReactNode {
     default:
       return <FileText className="h-3.5 w-3.5 text-primary" />
   }
-}
-
-function renderInlineMarkdown(text: string): React.ReactNode {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
-
-  return parts.map((part) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      const boldText = part.slice(2, -2)
-      return (
-        <strong key={`b-${part}`} className="text-foreground">
-          {boldText}
-        </strong>
-      )
-    }
-
-    if (part.startsWith('`') && part.endsWith('`')) {
-      const codeText = part.slice(1, -1)
-      return (
-        <code
-          key={`c-${part}`}
-          className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary text-sm"
-        >
-          {codeText}
-        </code>
-      )
-    }
-
-    return <span key={`t-${part}`}>{part}</span>
-  })
 }

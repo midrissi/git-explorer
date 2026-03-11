@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  Box,
-  CheckCircle2,
-  Flame,
-  GitBranch,
-  Zap,
-} from 'lucide-react'
+import { AlertCircle, Box, CheckCircle2, Flame, GitBranch, Zap } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { ConventionalCommit } from '@/features/git-object-explorer/utils/conventionalCommit'
 import { getTypeColors } from '@/features/git-object-explorer/utils/conventionalCommit'

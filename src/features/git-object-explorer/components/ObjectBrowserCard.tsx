@@ -1,24 +1,40 @@
 import { ChevronDown, ChevronRight, FolderTree, GitCommitHorizontal } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { IndexedObjectFile } from '@/features/git-object-explorer/useGitObjectFile'
 
-export function ObjectBrowserCard({
-  entries,
-  selectedFolder,
-  selectedObjectId,
-  onSelectFolder,
-  onSelectObject,
-}: {
-  entries: IndexedObjectFile[]
-  selectedFolder: string
-  selectedObjectId: string | null
-  onSelectFolder: (folder: string) => void
-  onSelectObject: (entry: IndexedObjectFile) => void
-}) {
+export const ObjectBrowserCard = forwardRef<
+  { scrollToObject: (id: string) => void },
+  {
+    entries: IndexedObjectFile[]
+    selectedFolder: string
+    selectedObjectId: string | null
+    onSelectFolder: (folder: string) => void
+    onSelectObject: (entry: IndexedObjectFile) => void
+  }
+>(function ObjectBrowserCard(
+  { entries, selectedFolder, selectedObjectId, onSelectFolder, onSelectObject },
+  ref
+) {
   const grouped = useMemo(() => groupEntries(entries), [entries])
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    scrollToObject: (id: string) => {
+      const button = scrollContainerRef.current?.querySelector(
+        `[data-object-id="${id}"]`
+      ) as HTMLElement
+      if (button) {
+        button.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        button.classList.add('ring-2', 'ring-sky-500')
+        setTimeout(() => {
+          button.classList.remove('ring-2', 'ring-sky-500')
+        }, 1500)
+      }
+    },
+  }))
 
   useEffect(() => {
     if (grouped.length === 0) {
@@ -150,6 +166,7 @@ export function ObjectBrowserCard({
         <div
           role="tree"
           tabIndex={0}
+          ref={scrollContainerRef}
           onKeyDown={onTreeKeyDown}
           className="max-h-[34rem] overflow-y-auto rounded-lg border border-border/60 bg-muted/20 p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label="Git object tree"
@@ -173,7 +190,7 @@ export function ObjectBrowserCard({
                     folderActive
                       ? 'bg-primary/20 text-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
+                  } cursor-pointer`}
                 >
                   {isExpanded ? (
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 text-sky-400" />
@@ -196,11 +213,12 @@ export function ObjectBrowserCard({
                           type="button"
                           role="treeitem"
                           key={entry.id}
+                          data-object-id={entry.id}
                           onClick={() => {
                             setActiveNodeId(fileNodeId)
                             onSelectObject(entry)
                           }}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                          className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
                             isSelected
                               ? 'bg-primary/25 text-foreground'
                               : isActive
@@ -222,7 +240,7 @@ export function ObjectBrowserCard({
       </CardContent>
     </Card>
   )
-}
+})
 
 function groupEntries(entries: IndexedObjectFile[]) {
   const map = new Map<string, IndexedObjectFile[]>()

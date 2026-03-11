@@ -1,11 +1,12 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { idb } from '@/features/git-object-explorer/stores/indexedDB'
 import { type GitObject, parseGitObject } from '@/git-parser'
 
 export interface IndexedObjectFile {
   id: string
   folder: string
   displayPath: string
-  file: File
+  file?: File
 }
 
 interface FileWithPath {
@@ -22,6 +23,54 @@ export function useGitObjectFile() {
   const [selectedFolder, setSelectedFolder] = useState<string>('')
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null)
 
+  const loadCachedObject = useCallback(async (displayPath: string) => {
+    setError(null)
+
+    try {
+      await idb.init()
+      const cached = await idb.getObject(displayPath)
+
+      if (!cached) {
+        setGitObj(null)
+        setError(`Object ${displayPath} is not cached yet. Re-import the folder to load it.`)
+        return
+      }
+
+      setGitObj(cached.object)
+      setFileName(cached.fileName ?? displayPath)
+    } catch (e) {
+      setGitObj(null)
+      setError(e instanceof Error ? e.message : 'Failed to load cached git object')
+    }
+  }, [])
+
+  const cacheFolderObjects = useCallback(async (entries: IndexedObjectFile[]) => {
+    if (entries.length === 0) {
+      return
+    }
+
+    try {
+      await idb.init()
+
+      // Keep import responsive while still ensuring every loose object is cached.
+      for (const entry of entries) {
+        if (!entry.file) {
+          continue
+        }
+
+        try {
+          const buffer = await entry.file.arrayBuffer()
+          const obj = await parseGitObject(buffer)
+          await idb.saveObject(entry.displayPath, obj, entry.displayPath)
+        } catch (error) {
+          console.warn(`Failed to cache object ${entry.displayPath}:`, error)
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to cache folder objects:', error)
+    }
+  }, [])
+
   const handleFile = useCallback(async (file: File, visibleName?: string) => {
     setError(null)
     setGitObj(null)
@@ -35,6 +84,38 @@ export function useGitObjectFile() {
       setError(e instanceof Error ? e.message : 'Failed to parse git object')
     }
   }, [])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await idb.init()
+        const state = await idb.getState()
+        const persistedEntries = state?.objectEntries ?? []
+
+        if (persistedEntries.length === 0) {
+          return
+        }
+
+        const restoredEntries: IndexedObjectFile[] = persistedEntries.map((entry) => ({
+          id: entry.id,
+          folder: entry.folder,
+          displayPath: entry.displayPath,
+        }))
+
+        setObjectEntries(restoredEntries)
+        setSelectedFolder(state?.selectedFolder ?? restoredEntries[0].folder)
+        setSelectedObjectId(state?.selectedObjectId ?? restoredEntries[0].id)
+
+        const initialId = state?.selectedObjectId ?? restoredEntries[0].id
+        const initialEntry = restoredEntries.find((entry) => entry.id === initialId)
+        if (initialEntry) {
+          await loadCachedObject(initialEntry.displayPath)
+        }
+      } catch {
+        // Ignore restore failures; user can still import files manually.
+      }
+    })()
+  }, [loadCachedObject])
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -52,10 +133,17 @@ export function useGitObjectFile() {
           const firstFolder = indexed[0].folder
           const firstInFolder = indexed.find((entry) => entry.folder === firstFolder) ?? indexed[0]
 
+          if (!firstInFolder.file) {
+            setError('Unable to read object file from dropped directory')
+            return
+          }
+
           setError(null)
           setObjectEntries(indexed)
           setSelectedFolder(firstFolder)
           setSelectedObjectId(firstInFolder.id)
+
+          void cacheFolderObjects(indexed)
           await handleFile(firstInFolder.file, firstInFolder.displayPath)
           return
         }
@@ -66,7 +154,7 @@ export function useGitObjectFile() {
         await handleFile(dropped[0].file)
       })()
     },
-    [handleFile]
+    [cacheFolderObjects, handleFile]
   )
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -112,21 +200,35 @@ export function useGitObjectFile() {
       const firstFolder = indexed[0].folder
       const firstInFolder = indexed.find((entry) => entry.folder === firstFolder) ?? indexed[0]
 
+      if (!firstInFolder.file) {
+        setError('Unable to read object file from selected directory')
+        setObjectEntries([])
+        setSelectedFolder('')
+        setSelectedObjectId(null)
+        return
+      }
+
       setError(null)
       setObjectEntries(indexed)
       setSelectedFolder(firstFolder)
       setSelectedObjectId(firstInFolder.id)
+
+      void cacheFolderObjects(indexed)
       void handleFile(firstInFolder.file, firstInFolder.displayPath)
     },
-    [handleFile]
+    [cacheFolderObjects, handleFile]
   )
 
   const onSelectObject = useCallback(
     (entry: IndexedObjectFile) => {
       setSelectedObjectId(entry.id)
-      void handleFile(entry.file, entry.displayPath)
+      if (entry.file) {
+        void handleFile(entry.file, entry.displayPath)
+      } else {
+        void loadCachedObject(entry.displayPath)
+      }
     },
-    [handleFile]
+    [handleFile, loadCachedObject]
   )
 
   return {
@@ -175,7 +277,7 @@ function indexGitObjectFiles(files: FileWithPath[]): IndexedObjectFile[] {
 
     const displayPath = `${folder}/${segments.slice(1).join('/')}`
     entries.push({
-      id: rel,
+      id: displayPath,
       folder: folder.toLowerCase(),
       displayPath,
       file: item.file,

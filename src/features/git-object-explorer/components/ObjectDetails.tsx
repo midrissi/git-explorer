@@ -9,6 +9,7 @@ import {
   GitCommitHorizontal,
   Image,
   KeyRound,
+  Link,
   ScrollText,
   Signature,
   Tag,
@@ -24,24 +25,54 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ConventionalCommitCard } from '@/features/git-object-explorer/components/ConventionalCommitCard'
 import { CommitEditorCard } from '@/features/git-object-explorer/components/CommitEditorCard'
+import { ConventionalCommitCard } from '@/features/git-object-explorer/components/ConventionalCommitCard'
 import { DetailRow } from '@/features/git-object-explorer/components/DetailRow'
 import {
   formatGitIdentity,
   formatNumber,
   shortHash,
 } from '@/features/git-object-explorer/formatters'
+import type { IndexedObjectFile } from '@/features/git-object-explorer/useGitObjectFile'
 import { parseConventionalCommit } from '@/features/git-object-explorer/utils/conventionalCommit'
 import type { GitBlob, GitObject } from '@/git-parser'
 
 export function ObjectDetails({
   gitObj,
   fileName,
+  objectEntries,
+  onSelectObject,
+  onHashClick,
 }: {
   gitObj: GitObject
   fileName?: string | null
+  objectEntries?: IndexedObjectFile[]
+  onSelectObject?: (entry: IndexedObjectFile) => void
+  onHashClick?: (hash: string) => void
 }) {
+  const findObjectByHash = (hash: string): IndexedObjectFile | undefined => {
+    if (!objectEntries) return undefined
+    return objectEntries.find(
+      (entry) => entry.displayPath.replace('/', '').toLowerCase() === hash.toLowerCase()
+    )
+  }
+
+  const hasObjectForHash = (hash: string): boolean => {
+    return !!findObjectByHash(hash)
+  }
+
+  const handleObjectHashClick = (hash: string) => {
+    if (onHashClick) {
+      onHashClick(hash)
+      return
+    }
+
+    const entry = findObjectByHash(hash)
+    if (entry && onSelectObject) {
+      onSelectObject(entry)
+    }
+  }
+
   if (gitObj.type === 'blob') {
     return <BlobContentCard blob={gitObj} fileName={fileName} />
   }
@@ -70,16 +101,31 @@ export function ObjectDetails({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {gitObj.entries.map((entry) => (
-                <TableRow key={`${entry.mode}-${entry.name}-${entry.hash}`}>
-                  <TableCell className="font-mono text-primary">{entry.mode}</TableCell>
-                  <TableCell className="text-muted-foreground">{entry.modeDescription}</TableCell>
-                  <TableCell className="font-medium">{entry.name}</TableCell>
-                  <TableCell className="font-mono text-muted-foreground text-xs">
-                    {shortHash(entry.hash)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {gitObj.entries.map((entry) => {
+                const isFound = hasObjectForHash(entry.hash)
+                return (
+                  <TableRow key={`${entry.mode}-${entry.name}-${entry.hash}`}>
+                    <TableCell className="font-mono text-primary">{entry.mode}</TableCell>
+                    <TableCell className="text-muted-foreground">{entry.modeDescription}</TableCell>
+                    <TableCell className="font-medium">{entry.name}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground text-xs">
+                      {isFound ? (
+                        <button
+                          type="button"
+                          onClick={() => handleObjectHashClick(entry.hash)}
+                          className="group inline-flex cursor-pointer items-center gap-1 text-sky-500 transition-colors hover:text-sky-400"
+                          title={`Open object ${entry.hash}`}
+                        >
+                          {shortHash(entry.hash)}
+                          <Link className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                        </button>
+                      ) : (
+                        shortHash(entry.hash)
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -92,9 +138,7 @@ export function ObjectDetails({
 
     return (
       <div className="space-y-4">
-        {parsedCommit ? (
-          <ConventionalCommitCard commit={parsedCommit} />
-        ) : null}
+        {parsedCommit ? <ConventionalCommitCard commit={parsedCommit} /> : null}
 
         <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
           <CardHeader>
@@ -109,6 +153,8 @@ export function ObjectDetails({
               value={shortHash(gitObj.tree)}
               mono
               icon={<GitBranch className="h-4 w-4 text-sky-500" />}
+              isClickable={hasObjectForHash(gitObj.tree)}
+              onClick={() => handleObjectHashClick(gitObj.tree)}
             />
             {gitObj.parents.map((p, i) => (
               <DetailRow
@@ -117,6 +163,8 @@ export function ObjectDetails({
                 value={shortHash(p)}
                 mono
                 icon={<GitCommitHorizontal className="h-4 w-4 text-orange-500" />}
+                isClickable={hasObjectForHash(p)}
+                onClick={() => handleObjectHashClick(p)}
               />
             ))}
             <DetailRow
@@ -175,6 +223,8 @@ export function ObjectDetails({
           value={shortHash(gitObj.object)}
           mono
           icon={<Binary className="h-4 w-4 text-primary" />}
+          isClickable={hasObjectForHash(gitObj.object)}
+          onClick={() => handleObjectHashClick(gitObj.object)}
         />
         <DetailRow
           label="Type"
