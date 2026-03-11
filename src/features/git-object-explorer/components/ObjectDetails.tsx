@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ConventionalCommitCard } from '@/features/git-object-explorer/components/ConventionalCommitCard'
 import { CommitEditorCard } from '@/features/git-object-explorer/components/CommitEditorCard'
 import { DetailRow } from '@/features/git-object-explorer/components/DetailRow'
 import {
@@ -31,6 +32,7 @@ import {
   formatNumber,
   shortHash,
 } from '@/features/git-object-explorer/formatters'
+import { parseConventionalCommit } from '@/features/git-object-explorer/utils/conventionalCommit'
 import type { GitBlob, GitObject } from '@/git-parser'
 
 export function ObjectDetails({
@@ -86,8 +88,14 @@ export function ObjectDetails({
   }
 
   if (gitObj.type === 'commit') {
+    const parsedCommit = parseConventionalCommit(gitObj.message)
+
     return (
       <div className="space-y-4">
+        {parsedCommit ? (
+          <ConventionalCommitCard commit={parsedCommit} />
+        ) : null}
+
         <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -134,15 +142,17 @@ export function ObjectDetails({
               }
               icon={<Signature className="h-4 w-4 text-violet-500" />}
             />
-            <div className="mt-3 border-t pt-3">
-              <span className="inline-flex items-center gap-2 text-muted-foreground text-sm">
-                <FileCode2 className="h-4 w-4 text-primary" />
-                Message
-              </span>
-              <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-amber-500/30 bg-muted/80 p-3 font-mono text-sm">
-                {gitObj.message}
-              </pre>
-            </div>
+            {!parsedCommit && (
+              <div className="mt-3 border-t pt-3">
+                <span className="inline-flex items-center gap-2 text-muted-foreground text-sm">
+                  <FileCode2 className="h-4 w-4 text-primary" />
+                  Message
+                </span>
+                <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-amber-500/30 bg-muted/80 p-3 font-mono text-sm">
+                  {gitObj.message}
+                </pre>
+              </div>
+            )}
           </CardContent>
         </Card>
 
