@@ -90,7 +90,7 @@ export function parseConventionalCommit(message: string): ConventionalCommit | n
 
   // Extract body (everything before footers, trimmed of trailing blanks)
   const bodyLines = contentLines.slice(0, footerStartIdx)
-  let bodyContent = bodyLines.join('\n').trimEnd()
+  const bodyContent = bodyLines.join('\n').trimEnd()
   const body = bodyContent ? bodyContent : undefined
 
   // Extract footers
