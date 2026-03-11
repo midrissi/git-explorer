@@ -14,8 +14,7 @@ import {
   UserCircle2,
 } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { materialOceanic } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import Editor from '@monaco-editor/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -260,22 +259,27 @@ function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string 
                 {detectLanguage(fileName, blob.content)}
               </span>
             </div>
-            <div className="max-h-[min(70vh,34rem)] overflow-auto">
-              <SyntaxHighlighter
+            <div className="h-[min(70vh,34rem)]">
+              <Editor
                 language={detectLanguage(fileName, blob.content)}
-                style={materialOceanic}
-                showLineNumbers={false}
-                wrapLongLines={false}
-                customStyle={{
-                  margin: 0,
-                  borderRadius: 0,
-                  background: 'rgb(18 24 34)',
-                  fontSize: '0.8rem',
-                  minWidth: 'max-content',
+                value={blob.content}
+                theme="vs-dark"
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  lineNumbers: 'off',
+                  folding: true,
+                  wordWrap: 'off',
+                  fontSize: 13,
+                  padding: { top: 12, bottom: 12 },
+                  fontFamily: '"Fira Code", monospace',
+                  mouseWheelZoom: false,
+                  smoothScrolling: true,
+                  bracketPairColorization: {
+                    enabled: true,
+                  },
                 }}
-              >
-                {blob.content}
-              </SyntaxHighlighter>
+              />
             </div>
           </div>
         )}
@@ -355,23 +359,52 @@ const TEXT_EXTENSIONS = new Set([
   'md',
   'json',
   'js',
+  'jsx',
   'ts',
   'tsx',
-  'jsx',
   'css',
+  'scss',
+  'sass',
+  'less',
   'html',
   'xml',
   'yml',
   'yaml',
   'sh',
+  'bash',
   'py',
   'java',
   'go',
   'rs',
   'c',
   'cpp',
+  'cc',
+  'cxx',
   'h',
-  'sql',
+  'hpp',
+  'cs',
+  'php',
+  'rb',
+  'swift',
+  'kt',
+  'scala',
+  'r',
+  'lua',
+  'pl',
+  'groovy',
+  'gradle',
+  'hcl',
+  'tf',
+  'dockerfile',
+  'makefile',
+  'toml',
+  'ini',
+  'cfg',
+  'conf',
+  'graphql',
+  'wasm',
+  '4d',
+  '4dt',
 ])
 
 function startsWith(bytes: Uint8Array, sig: number[]): boolean {
@@ -461,17 +494,23 @@ function detectLanguage(fileName: string | null | undefined, content: string): s
     case 'ts':
       return 'typescript'
     case 'tsx':
-      return 'tsx'
+      return 'typescript'
     case 'js':
       return 'javascript'
     case 'jsx':
-      return 'jsx'
+      return 'javascript'
     case 'json':
       return 'json'
     case 'md':
       return 'markdown'
     case 'css':
       return 'css'
+    case 'scss':
+      return 'scss'
+    case 'sass':
+      return 'sass'
+    case 'less':
+      return 'less'
     case 'html':
       return 'html'
     case 'xml':
@@ -480,6 +519,8 @@ function detectLanguage(fileName: string | null | undefined, content: string): s
     case 'yaml':
       return 'yaml'
     case 'sh':
+      return 'bash'
+    case 'bash':
       return 'bash'
     case 'py':
       return 'python'
@@ -491,6 +532,59 @@ function detectLanguage(fileName: string | null | undefined, content: string): s
       return 'rust'
     case 'sql':
       return 'sql'
+    case 'c':
+      return 'c'
+    case 'cpp':
+    case 'cc':
+    case 'cxx':
+      return 'cpp'
+    case 'h':
+      return 'c'
+    case 'hpp':
+      return 'cpp'
+    case 'cs':
+      return 'csharp'
+    case 'php':
+      return 'php'
+    case 'rb':
+      return 'ruby'
+    case 'swift':
+      return 'swift'
+    case 'kt':
+      return 'kotlin'
+    case 'scala':
+      return 'scala'
+    case 'r':
+      return 'r'
+    case 'lua':
+      return 'lua'
+    case 'pl':
+      return 'perl'
+    case 'groovy':
+      return 'groovy'
+    case 'gradle':
+      return 'groovy'
+    case 'hcl':
+      return 'hcl'
+    case 'tf':
+      return 'terraform'
+    case 'dockerfile':
+    case 'Dockerfile':
+      return 'docker'
+    case 'makefile':
+    case 'Makefile':
+      return 'makefile'
+    case 'toml':
+      return 'toml'
+    case 'ini':
+      return 'ini'
+    case 'cfg':
+    case 'conf':
+      return 'properties'
+    case 'graphql':
+      return 'graphql'
+    case 'wasm':
+      return 'wasm'
     default:
       return detectLanguageFromContent(content)
   }
@@ -498,17 +592,30 @@ function detectLanguage(fileName: string | null | undefined, content: string): s
 
 function detectLanguageFromContent(content: string): string {
   const head = content.slice(0, 400)
+  
   if (head.trimStart().startsWith('{') || head.trimStart().startsWith('[')) {
     return 'json'
   }
+  
   if (/^#!.*\b(bash|sh|zsh)\b/m.test(head)) {
     return 'bash'
   }
+  
   if (/^#!.*\bpython\b/m.test(head)) {
     return 'python'
   }
+  
   if (/<\/?[a-z][\s\S]*>/i.test(head)) {
     return 'html'
   }
+  
+  if (/import\s+.*\sfrom\s+['"][\w-]+['"]|import\s+{[\s\w,*]+}\s+from/m.test(head)) {
+    return 'javascript'
+  }
+  
+  if (/\$\(|\$\{|\.run\(|\bfunction\(|=>|\bconst\b|\blet\b|\bvar\b/m.test(head)) {
+    return 'javascript'
+  }
+  
   return 'text'
 }
