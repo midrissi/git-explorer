@@ -71,7 +71,11 @@ export function useIndexedDBState() {
       historyIndexRef.current = newIndex
 
       // Persist to IndexedDB
-      void idb.addHistoryEntry(`${Date.now()}-${newIndex}`, entry.id, entry.displayPath, newIndex)
+      void idb
+        .addHistoryEntry(`${Date.now()}-${newIndex}`, entry.id, entry.displayPath, newIndex)
+        .catch((error) => {
+          console.warn('Failed to persist navigation history entry:', error)
+        })
 
       return newHistory
     })
@@ -86,7 +90,9 @@ export function useIndexedDBState() {
   }, [navigationHistory.length])
 
   const saveObject = useCallback((hash: string, object: GitObject, fileName?: string) => {
-    void idb.saveObject(hash, object, fileName)
+    void idb.saveObject(hash, object, fileName).catch((error) => {
+      console.warn('Failed to persist object cache:', error)
+    })
   }, [])
 
   const saveState = useCallback(
@@ -95,18 +101,30 @@ export function useIndexedDBState() {
       selectedFolder: string | null,
       objectEntries: IndexedObjectFile[]
     ) => {
-      void idb.saveState({
-        selectedObjectId,
-        selectedFolder,
-        objectEntries: objectEntries.map((entry) => ({
-          id: entry.id,
-          folder: entry.folder,
-          displayPath: entry.displayPath,
-        })),
-      })
+      void idb
+        .saveState({
+          selectedObjectId,
+          selectedFolder,
+          objectEntries: objectEntries.map((entry) => ({
+            id: entry.id,
+            folder: entry.folder,
+            displayPath: entry.displayPath,
+            objectType: entry.objectType,
+          })),
+        })
+        .catch((error) => {
+          console.warn('Failed to persist explorer state:', error)
+        })
     },
     []
   )
+
+  const clearPersistedData = useCallback(async () => {
+    await idb.clearAll()
+    setNavigationHistory([])
+    setHistoryIndex(-1)
+    setSavedState(null)
+  }, [])
 
   return {
     historyIndex,
@@ -120,5 +138,6 @@ export function useIndexedDBState() {
     canGoForward: historyIndex < navigationHistory.length - 1,
     saveObject,
     saveState,
+    clearPersistedData,
   }
 }

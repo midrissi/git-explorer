@@ -1,7 +1,38 @@
-import { ChevronDown, ChevronRight, FolderTree, GitCommitHorizontal } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  FileCode2,
+  FolderTree,
+  GitBranch,
+  GitCommitHorizontal,
+  Navigation,
+  Tag,
+  Trash2,
+} from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { IndexedObjectFile } from '@/features/git-object-explorer/useGitObjectFile'
+
+type BrowserTab = 'explorer' | 'commits' | 'trees' | 'blobs' | 'tags'
+
+const BROWSER_TABS: Array<{
+  id: BrowserTab
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+}> = [
+  { id: 'explorer', label: 'Explorer', icon: Navigation },
+  { id: 'commits', label: 'Commits', icon: GitCommitHorizontal },
+  { id: 'trees', label: 'Trees', icon: GitBranch },
+  { id: 'blobs', label: 'Blobs', icon: FileCode2 },
+  { id: 'tags', label: 'Tags', icon: Tag },
+]
+
+const TAB_TYPE_FILTER: Partial<Record<BrowserTab, IndexedObjectFile['objectType']>> = {
+  commits: 'commit',
+  trees: 'tree',
+  blobs: 'blob',
+  tags: 'tag',
+}
 
 export const ObjectBrowserCard = forwardRef<
   { scrollToObject: (id: string) => void },
@@ -11,12 +42,46 @@ export const ObjectBrowserCard = forwardRef<
     selectedObjectId: string | null
     onSelectFolder: (folder: string) => void
     onSelectObject: (entry: IndexedObjectFile) => void
+    onClearData?: () => void
+    isClearingData?: boolean
   }
 >(function ObjectBrowserCard(
-  { entries, selectedFolder, selectedObjectId, onSelectFolder, onSelectObject },
+  {
+    entries,
+    selectedFolder,
+    selectedObjectId,
+    onSelectFolder,
+    onSelectObject,
+    onClearData,
+    isClearingData,
+  },
   ref
 ) {
-  const grouped = useMemo(() => groupEntries(entries), [entries])
+  const [activeTab, setActiveTab] = useState<BrowserTab>('explorer')
+  const filteredEntries = useMemo(() => {
+    if (activeTab === 'explorer') {
+      return entries
+    }
+
+    const typeFilter = TAB_TYPE_FILTER[activeTab]
+    if (!typeFilter) {
+      return entries
+    }
+
+    return entries.filter((entry) => entry.objectType === typeFilter)
+  }, [activeTab, entries])
+
+  const tabCounts = useMemo(() => {
+    return {
+      explorer: entries.length,
+      commits: entries.filter((entry) => entry.objectType === 'commit').length,
+      trees: entries.filter((entry) => entry.objectType === 'tree').length,
+      blobs: entries.filter((entry) => entry.objectType === 'blob').length,
+      tags: entries.filter((entry) => entry.objectType === 'tag').length,
+    }
+  }, [entries])
+
+  const grouped = useMemo(() => groupEntries(filteredEntries), [filteredEntries])
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -44,19 +109,55 @@ export const ObjectBrowserCard = forwardRef<
     }
 
     const initialFolder = selectedFolder || grouped[0].folder
-    const nextExpanded = new Set<string>([initialFolder])
-    setExpandedFolders(nextExpanded)
 
-    const firstFile =
-      grouped.find((g) => g.folder === initialFolder)?.files[0] ?? grouped[0].files[0]
-    if (selectedObjectId) {
-      setActiveNodeId(`file:${selectedObjectId}`)
-    } else if (firstFile) {
-      setActiveNodeId(`file:${firstFile.id}`)
-    } else {
-      setActiveNodeId(`folder:${initialFolder}`)
+    setExpandedFolders((prev) => {
+      if (prev.size === 0) {
+        return new Set([initialFolder])
+      }
+      if (!prev.has(initialFolder)) {
+        const next = new Set(prev)
+        next.add(initialFolder)
+        return next
+      }
+      return prev
+    })
+
+    if (!selectedObjectId) {
+      const firstFile =
+        grouped.find((g) => g.folder === initialFolder)?.files[0] ?? grouped[0].files[0]
+      if (firstFile) {
+        setActiveNodeId(`file:${firstFile.id}`)
+      } else {
+        setActiveNodeId(`folder:${initialFolder}`)
+      }
     }
   }, [grouped, selectedFolder, selectedObjectId])
+
+  useEffect(() => {
+    if (!selectedObjectId) {
+      return
+    }
+
+    const parentGroup = grouped.find((group) =>
+      group.files.some((file) => file.id === selectedObjectId)
+    )
+
+    if (!parentGroup) {
+      return
+    }
+
+    setExpandedFolders((prev) => {
+      if (prev.has(parentGroup.folder)) {
+        return prev
+      }
+
+      const next = new Set(prev)
+      next.add(parentGroup.folder)
+      return next
+    })
+
+    setActiveNodeId(`file:${selectedObjectId}`)
+  }, [grouped, selectedObjectId])
 
   const visibleNodes = useMemo(() => {
     const nodes: Array<{
@@ -153,16 +254,76 @@ export const ObjectBrowserCard = forwardRef<
 
   return (
     <Card className="border-sky-500/30 bg-gradient-to-br from-sky-500/10 to-transparent">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FolderTree className="h-4 w-4 text-sky-400" />
-          Object Browser
-        </CardTitle>
-        <CardDescription>
-          Tree view of .git/objects. Use arrow keys to navigate and Enter to select.
-        </CardDescription>
+      <CardHeader className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <CardTitle className="flex items-center gap-2">
+              <FolderTree className="h-4 w-4 text-sky-400" />
+              Object Browser
+            </CardTitle>
+            <CardDescription>
+              Tree view of .git/objects. Use arrow keys to navigate and Enter to select.
+            </CardDescription>
+          </div>
+
+          {onClearData && (
+            <button
+              type="button"
+              onClick={onClearData}
+              disabled={isClearingData}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border/70 bg-background/60 px-2.5 font-medium text-muted-foreground text-xs transition-colors hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Clear cached objects, history, and saved selection"
+              aria-label="Clear cached data"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isClearingData ? 'Clearing...' : 'Clear cache'}
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-1.5 shadow-inner">
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="tablist"
+            aria-label="Object browser filters"
+          >
+            {BROWSER_TABS.map((tab) => {
+              const isActive = activeTab === tab.id
+              const TabIcon = tab.icon
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 font-medium text-xs transition-all ${
+                    isActive
+                      ? 'border-sky-400/50 bg-sky-500/15 text-foreground shadow-sm'
+                      : 'border-transparent text-muted-foreground hover:border-border/70 hover:bg-muted/60 hover:text-foreground'
+                  }`}
+                >
+                  <TabIcon
+                    className={`h-3.5 w-3.5 ${isActive ? 'text-sky-300' : 'text-muted-foreground'}`}
+                  />
+                  <span>{tab.label}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
+                      isActive
+                        ? 'bg-sky-500/25 text-sky-100'
+                        : 'bg-background/70 text-muted-foreground'
+                    }`}
+                  >
+                    {tabCounts[tab.id]}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div
           role="tree"
           tabIndex={0}
@@ -171,6 +332,12 @@ export const ObjectBrowserCard = forwardRef<
           className="max-h-[34rem] overflow-y-auto rounded-lg border border-border/60 bg-muted/20 p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label="Git object tree"
         >
+          {grouped.length === 0 && (
+            <div className="rounded-md px-2 py-3 text-muted-foreground text-sm">
+              No {activeTab} objects found in cache yet.
+            </div>
+          )}
+
           {grouped.map((group) => {
             const folderNodeId = `folder:${group.folder}`
             const isExpanded = expandedFolders.has(group.folder)

@@ -6,6 +6,7 @@ export interface IndexedObjectFile {
   id: string
   folder: string
   displayPath: string
+  objectType?: GitObject['type']
   file?: File
 }
 
@@ -38,6 +39,19 @@ export function useGitObjectFile() {
 
       setGitObj(cached.object)
       setFileName(cached.fileName ?? displayPath)
+      setObjectEntries((prev) => {
+        let changed = false
+        const next = prev.map((entry) => {
+          if (entry.displayPath !== displayPath || entry.objectType === cached.object.type) {
+            return entry
+          }
+
+          changed = true
+          return { ...entry, objectType: cached.object.type }
+        })
+
+        return changed ? next : prev
+      })
     } catch (e) {
       setGitObj(null)
       setError(e instanceof Error ? e.message : 'Failed to load cached git object')
@@ -51,6 +65,7 @@ export function useGitObjectFile() {
 
     try {
       await idb.init()
+      const typeById = new Map<string, GitObject['type']>()
 
       // Keep import responsive while still ensuring every loose object is cached.
       for (const entry of entries) {
@@ -61,10 +76,28 @@ export function useGitObjectFile() {
         try {
           const buffer = await entry.file.arrayBuffer()
           const obj = await parseGitObject(buffer)
+          typeById.set(entry.id, obj.type)
           await idb.saveObject(entry.displayPath, obj, entry.displayPath)
         } catch (error) {
           console.warn(`Failed to cache object ${entry.displayPath}:`, error)
         }
+      }
+
+      if (typeById.size > 0) {
+        setObjectEntries((prev) => {
+          let changed = false
+          const next = prev.map((entry) => {
+            const objectType = typeById.get(entry.id)
+            if (!objectType || entry.objectType === objectType) {
+              return entry
+            }
+
+            changed = true
+            return { ...entry, objectType }
+          })
+
+          return changed ? next : prev
+        })
       }
     } catch (error) {
       console.warn('Failed to cache folder objects:', error)
@@ -80,6 +113,21 @@ export function useGitObjectFile() {
       const buffer = await file.arrayBuffer()
       const obj = await parseGitObject(buffer)
       setGitObj(obj)
+      if (visibleName) {
+        setObjectEntries((prev) => {
+          let changed = false
+          const next = prev.map((entry) => {
+            if (entry.displayPath !== visibleName || entry.objectType === obj.type) {
+              return entry
+            }
+
+            changed = true
+            return { ...entry, objectType: obj.type }
+          })
+
+          return changed ? next : prev
+        })
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to parse git object')
     }
@@ -100,6 +148,7 @@ export function useGitObjectFile() {
           id: entry.id,
           folder: entry.folder,
           displayPath: entry.displayPath,
+          objectType: entry.objectType,
         }))
 
         setObjectEntries(restoredEntries)
@@ -231,6 +280,16 @@ export function useGitObjectFile() {
     [handleFile, loadCachedObject]
   )
 
+  const resetData = useCallback(() => {
+    setGitObj(null)
+    setError(null)
+    setFileName(null)
+    setObjectEntries([])
+    setSelectedFolder('')
+    setSelectedObjectId(null)
+    setIsDragging(false)
+  }, [])
+
   return {
     gitObj,
     error,
@@ -246,6 +305,7 @@ export function useGitObjectFile() {
     onDirectoryInput,
     onSelectObject,
     setSelectedFolder,
+    resetData,
   }
 }
 

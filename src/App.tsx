@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { DropZoneCard } from '@/features/git-object-explorer/components/DropZoneCard'
 import { ExplanationCard } from '@/features/git-object-explorer/components/ExplanationCard'
 import { Hero } from '@/features/git-object-explorer/components/Hero'
@@ -30,6 +31,7 @@ function App() {
     onDirectoryInput,
     onSelectObject,
     setSelectedFolder,
+    resetData,
   } = useGitObjectFile()
 
   const {
@@ -44,10 +46,13 @@ function App() {
     canGoForward,
     saveObject,
     saveState,
+    clearPersistedData,
   } = useIndexedDBState()
 
   const objectBrowserRef = useRef<{ scrollToObject: (id: string) => void } | null>(null)
   const hasRestoredStateRef = useRef(false)
+  const [isClearingData, setIsClearingData] = useState(false)
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false)
 
   const explanations = gitObj ? explainGitObject(gitObj) : []
   const hasExplorer = objectEntries.length > 0
@@ -154,6 +159,41 @@ function App() {
     }
   }, [canGoForward, goForward, historyIndex, navigationHistory, objectEntries, onSelectObject])
 
+  const closeClearModal = useCallback(() => {
+    if (!isClearingData) {
+      setIsClearModalOpen(false)
+    }
+  }, [isClearingData])
+
+  useEffect(() => {
+    if (!isClearModalOpen) {
+      return
+    }
+
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeClearModal()
+      }
+    }
+
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [closeClearModal, isClearModalOpen])
+
+  const handleClearData = useCallback(async () => {
+    setIsClearingData(true)
+    try {
+      await clearPersistedData()
+      resetData()
+      hasRestoredStateRef.current = false
+      setIsClearModalOpen(false)
+    } catch (error) {
+      console.error('Failed to clear persisted data:', error)
+    } finally {
+      setIsClearingData(false)
+    }
+  }, [clearPersistedData, resetData])
+
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>
   }
@@ -197,6 +237,8 @@ function App() {
                 selectedObjectId={selectedObjectId}
                 onSelectFolder={setSelectedFolder}
                 onSelectObject={handleObjectBrowserSelect}
+                onClearData={() => setIsClearModalOpen(true)}
+                isClearingData={isClearingData}
               />
             </div>
 
@@ -253,6 +295,47 @@ function App() {
           )
         )}
       </main>
+
+      {isClearModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-background/75 backdrop-blur-sm"
+            onClick={closeClearModal}
+            aria-label="Close clear data dialog"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-data-title"
+            className="relative w-full max-w-md rounded-xl border border-rose-400/30 bg-card p-5 shadow-2xl"
+          >
+            <h2 id="clear-data-title" className="font-semibold text-base text-foreground">
+              Clear all cached data?
+            </h2>
+            <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+              This will remove cached objects, navigation history, and saved explorer state. This
+              action cannot be undone.
+            </p>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={closeClearModal} disabled={isClearingData}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  void handleClearData()
+                }}
+                disabled={isClearingData}
+              >
+                {isClearingData ? 'Clearing...' : 'Clear Data'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
