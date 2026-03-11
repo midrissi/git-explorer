@@ -31,7 +31,8 @@ export function ObjectBrowserCard({
     const nextExpanded = new Set<string>([initialFolder])
     setExpandedFolders(nextExpanded)
 
-    const firstFile = grouped.find((g) => g.folder === initialFolder)?.files[0] ?? grouped[0].files[0]
+    const firstFile =
+      grouped.find((g) => g.folder === initialFolder)?.files[0] ?? grouped[0].files[0]
     if (selectedObjectId) {
       setActiveNodeId(`file:${selectedObjectId}`)
     } else if (firstFile) {
@@ -42,8 +43,12 @@ export function ObjectBrowserCard({
   }, [grouped, selectedFolder, selectedObjectId])
 
   const visibleNodes = useMemo(() => {
-    const nodes: Array<{ id: string; type: 'folder' | 'file'; folder: string; file?: IndexedObjectFile }> =
-      []
+    const nodes: Array<{
+      id: string
+      type: 'folder' | 'file'
+      folder: string
+      file?: IndexedObjectFile
+    }> = []
 
     for (const group of grouped) {
       nodes.push({ id: `folder:${group.folder}`, type: 'folder', folder: group.folder })
@@ -232,6 +237,9 @@ function groupEntries(entries: IndexedObjectFile[]) {
   }
 
   return Array.from(map.entries())
-    .map(([folder, files]) => ({ folder, files: files.sort((a, b) => a.displayPath.localeCompare(b.displayPath)) }))
+    .map(([folder, files]) => ({
+      folder,
+      files: files.sort((a, b) => a.displayPath.localeCompare(b.displayPath)),
+    }))
     .sort((a, b) => a.folder.localeCompare(b.folder))
 }

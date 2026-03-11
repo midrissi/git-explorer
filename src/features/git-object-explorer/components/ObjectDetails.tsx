@@ -1,3 +1,4 @@
+import Editor from '@monaco-editor/react'
 import {
   Binary,
   CalendarClock,
@@ -14,7 +15,6 @@ import {
   UserCircle2,
 } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
-import Editor from '@monaco-editor/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -41,9 +41,7 @@ export function ObjectDetails({
   fileName?: string | null
 }) {
   if (gitObj.type === 'blob') {
-    return (
-      <BlobContentCard blob={gitObj} fileName={fileName} />
-    )
+    return <BlobContentCard blob={gitObj} fileName={fileName} />
   }
 
   if (gitObj.type === 'tree') {
@@ -301,9 +299,7 @@ function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string 
             Download {downloadName}
           </a>
           {type.kind === 'unknown' && (
-            <span className="text-muted-foreground text-xs">
-              Suggested extension: .{extension}
-            </span>
+            <span className="text-muted-foreground text-xs">Suggested extension: .{extension}</span>
           )}
         </div>
       </CardContent>
@@ -339,11 +335,21 @@ function detectBlobType(
   }
 
   if (nameExt && TEXT_EXTENSIONS.has(nameExt)) {
-    return { kind: 'text', mime: mimeFromExtension(nameExt), extension: nameExt, label: 'Text file' }
+    return {
+      kind: 'text',
+      mime: mimeFromExtension(nameExt),
+      extension: nameExt,
+      label: 'Text file',
+    }
   }
 
   if (looksLikeText(bytes)) {
-    return { kind: 'text', mime: 'text/plain;charset=utf-8', extension: nameExt || 'txt', label: 'Text file' }
+    return {
+      kind: 'text',
+      mime: 'text/plain;charset=utf-8',
+      extension: nameExt || 'txt',
+      label: 'Text file',
+    }
   }
 
   return {
@@ -592,30 +598,30 @@ function detectLanguage(fileName: string | null | undefined, content: string): s
 
 function detectLanguageFromContent(content: string): string {
   const head = content.slice(0, 400)
-  
+
   if (head.trimStart().startsWith('{') || head.trimStart().startsWith('[')) {
     return 'json'
   }
-  
+
   if (/^#!.*\b(bash|sh|zsh)\b/m.test(head)) {
     return 'bash'
   }
-  
+
   if (/^#!.*\bpython\b/m.test(head)) {
     return 'python'
   }
-  
+
   if (/<\/?[a-z][\s\S]*>/i.test(head)) {
     return 'html'
   }
-  
+
   if (/import\s+.*\sfrom\s+['"][\w-]+['"]|import\s+{[\s\w,*]+}\s+from/m.test(head)) {
     return 'javascript'
   }
-  
+
   if (/\$\(|\$\{|\.run\(|\bfunction\(|=>|\bconst\b|\blet\b|\bvar\b/m.test(head)) {
     return 'javascript'
   }
-  
+
   return 'text'
 }
