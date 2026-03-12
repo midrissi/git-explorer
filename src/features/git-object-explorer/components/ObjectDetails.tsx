@@ -1,7 +1,8 @@
-import Editor from '@monaco-editor/react'
+import Editor, { DiffEditor } from '@monaco-editor/react'
 import {
   Binary,
   CalendarClock,
+  Copy,
   Download,
   FileCode2,
   FileQuestion,
@@ -14,8 +15,10 @@ import {
   Signature,
   Tag,
   UserCircle2,
+  X,
 } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTheme } from '@/components/theme-provider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -33,7 +36,6 @@ import {
   formatNumber,
   shortHash,
 } from '@/features/git-object-explorer/formatters'
-import { useTheme } from '@/components/theme-provider'
 import type { IndexedObjectFile } from '@/features/git-object-explorer/useGitObjectFile'
 import { parseConventionalCommit } from '@/features/git-object-explorer/utils/conventionalCommit'
 import type { GitBlob, GitObject } from '@/git-parser'
@@ -75,7 +77,7 @@ export function ObjectDetails({
   }
 
   if (gitObj.type === 'blob') {
-    return <BlobContentCard blob={gitObj} fileName={fileName} />
+    return <BlobContentCard blob={gitObj} fileName={fileName} objectEntries={objectEntries} />
   }
 
   if (gitObj.type === 'tree') {
@@ -256,8 +258,44 @@ export function ObjectDetails({
   )
 }
 
-function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string | null }) {
+function BlobContentCard({
+  blob,
+  fileName,
+  objectEntries,
+}: {
+  blob: GitBlob
+  fileName?: string | null
+  objectEntries?: IndexedObjectFile[]
+}) {
+  const [comparisonBlobHash, setComparisonBlobHash] = useState<string | null>(null)
+  const [isComparingMode, setIsComparingMode] = useState(false)
+  const [comparisonContent, setComparisonContent] = useState<string | null>(null)
   const { theme } = useTheme()
+
+  const findObjectByHash = (hash: string): IndexedObjectFile | undefined => {
+    if (!objectEntries) return undefined
+    return objectEntries.find(
+      (entry) => entry.displayPath.replace('/', '').toLowerCase() === hash.toLowerCase()
+    )
+  }
+
+  const handleComparisonSelect = async (hash: string) => {
+    if (!hash) {
+      setComparisonContent(null)
+      return
+    }
+    const entry = findObjectByHash(hash)
+    if (entry?.file) {
+      try {
+        const text = await entry.file.text()
+        setComparisonContent(text)
+      } catch {
+        console.error('Failed to load comparison blob')
+        setComparisonContent(null)
+      }
+    }
+  }
+
   const bytes = blob.bytes ?? new TextEncoder().encode(blob.content)
   const type = detectBlobType(bytes, fileName)
   const extension = type.extension || extensionFromName(fileName) || 'bin'
@@ -324,37 +362,111 @@ function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string 
         {type.kind === 'text' && (
           <div className="overflow-hidden rounded-lg border border-border/60">
             <div className="flex items-center justify-between border-border/60 border-b bg-muted/40 px-3 py-1.5">
-              <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                Syntax Highlight
-              </span>
-              <span className="font-mono text-muted-foreground text-xs">
-                {detectLanguage(fileName, blob.content)}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                  {isComparingMode ? 'Diff View' : 'Syntax Highlight'}
+                </span>
+                <span className="font-mono text-muted-foreground text-xs">
+                  {detectLanguage(fileName, blob.content)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {isComparingMode && (
+                  <>
+                    <span className="text-muted-foreground text-xs">Comparing with:</span>
+                    <input
+                      type="text"
+                      placeholder="Paste hash"
+                      value={comparisonBlobHash || ''}
+                      onChange={(e) => {
+                        const newHash = e.target.value || null
+                        setComparisonBlobHash(newHash)
+                        if (newHash) {
+                          handleComparisonSelect(newHash)
+                        } else {
+                          setComparisonContent(null)
+                        }
+                      }}
+                      className="w-24 rounded border border-border bg-background px-2 py-1 font-mono text-foreground text-xs placeholder:text-muted-foreground"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsComparingMode(false)}
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-muted"
+                      title="Exit compare mode"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
+                {!isComparingMode && (
+                  <button
+                    type="button"
+                    onClick={() => setIsComparingMode(true)}
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-muted"
+                    title="Compare with another blob"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Compare
+                  </button>
+                )}
+              </div>
             </div>
-            <div style={{ height: `${editorHeight}px` }}>
-              <Editor
-                language={detectLanguage(fileName, blob.content)}
-                value={blob.content}
-                theme={editorTheme}
-                options={{
-                  readOnly: true,
-                  minimap: { enabled: false },
-                  lineNumbers: 'off',
-                  folding: true,
-                  wordWrap: 'off',
-                  fontSize: 13,
-                  lineHeight: 20,
-                  padding: { top: 12, bottom: 12 },
-                  fontFamily: '"Fira Code", monospace',
-                  mouseWheelZoom: false,
-                  smoothScrolling: true,
-                  scrollBeyondLastLine: false,
-                  bracketPairColorization: {
-                    enabled: true,
-                  },
-                }}
-              />
-            </div>
+            {isComparingMode && comparisonBlobHash && comparisonContent ? (
+              <div style={{ height: `${editorHeight}px` }}>
+                <DiffEditor
+                  language={detectLanguage(fileName, blob.content)}
+                  original={blob.content}
+                  modified={comparisonContent}
+                  theme={editorTheme}
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    lineNumbers: 'off',
+                    folding: true,
+                    wordWrap: 'off',
+                    fontSize: 13,
+                    lineHeight: 20,
+                    fontFamily: '"Fira Code", monospace',
+                    mouseWheelZoom: false,
+                    smoothScrolling: true,
+                    renderSideBySide: true,
+                    enableSplitViewResizing: true,
+                  }}
+                />
+              </div>
+            ) : !isComparingMode ? (
+              <div style={{ height: `${editorHeight}px` }}>
+                <Editor
+                  language={detectLanguage(fileName, blob.content)}
+                  value={blob.content}
+                  theme={editorTheme}
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    lineNumbers: 'off',
+                    folding: true,
+                    wordWrap: 'off',
+                    fontSize: 13,
+                    lineHeight: 20,
+                    padding: { top: 12, bottom: 12 },
+                    fontFamily: '"Fira Code", monospace',
+                    mouseWheelZoom: false,
+                    smoothScrolling: true,
+                    scrollBeyondLastLine: false,
+                    bracketPairColorization: {
+                      enabled: true,
+                    },
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center border-border/60 border-t p-8 text-muted-foreground text-sm">
+                {isComparingMode && comparisonBlobHash
+                  ? 'Loading comparison blob...'
+                  : 'Enter a blob hash to compare'}
+              </div>
+            )}
           </div>
         )}
 

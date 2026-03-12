@@ -6,8 +6,10 @@ import {
   GitBranch,
   GitCommitHorizontal,
   Navigation,
+  Search,
   Tag,
   Trash2,
+  X,
 } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,18 +60,32 @@ export const ObjectBrowserCard = forwardRef<
   ref
 ) {
   const [activeTab, setActiveTab] = useState<BrowserTab>('explorer')
+  const [searchQuery, setSearchQuery] = useState('')
+
   const filteredEntries = useMemo(() => {
-    if (activeTab === 'explorer') {
-      return entries
+    let results = entries
+
+    // Apply tab type filter
+    if (activeTab !== 'explorer') {
+      const typeFilter = TAB_TYPE_FILTER[activeTab]
+      if (typeFilter) {
+        results = results.filter((entry) => entry.objectType === typeFilter)
+      }
     }
 
-    const typeFilter = TAB_TYPE_FILTER[activeTab]
-    if (!typeFilter) {
-      return entries
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      results = results.filter(
+        (entry) =>
+          entry.displayPath.toLowerCase().includes(query) ||
+          entry.id.toLowerCase().includes(query) ||
+          entry.folder.toLowerCase().includes(query)
+      )
     }
 
-    return entries.filter((entry) => entry.objectType === typeFilter)
-  }, [activeTab, entries])
+    return results
+  }, [activeTab, entries, searchQuery])
 
   const tabCounts = useMemo(() => {
     return {
@@ -158,6 +174,42 @@ export const ObjectBrowserCard = forwardRef<
 
     setActiveNodeId(`file:${selectedObjectId}`)
   }, [grouped, selectedObjectId])
+
+  // Auto-select first search result when search query changes
+  useEffect(() => {
+    if (searchQuery.trim() && filteredEntries.length > 0) {
+      const firstMatch = filteredEntries[0]
+      const parentGroup = grouped.find((group) =>
+        group.files.some((file) => file.id === firstMatch.id)
+      )
+
+      if (parentGroup) {
+        // Expand the folder containing the first result
+        setExpandedFolders((prev) => {
+          if (prev.has(parentGroup.folder)) {
+            return prev
+          }
+          const next = new Set(prev)
+          next.add(parentGroup.folder)
+          return next
+        })
+
+        // Auto-select the first matching object
+        onSelectObject(firstMatch)
+        setActiveNodeId(`file:${firstMatch.id}`)
+
+        // Scroll to the object after a brief delay to ensure DOM is updated
+        setTimeout(() => {
+          const button = scrollContainerRef.current?.querySelector(
+            `[data-object-id="${firstMatch.id}"]`
+          ) as HTMLElement
+          if (button) {
+            button.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 50)
+      }
+    }
+  }, [searchQuery, filteredEntries, grouped, onSelectObject])
 
   const visibleNodes = useMemo(() => {
     const nodes: Array<{
@@ -277,6 +329,29 @@ export const ObjectBrowserCard = forwardRef<
             >
               <Trash2 className="h-3.5 w-3.5" />
               {isClearingData ? 'Clearing...' : 'Clear cache'}
+            </button>
+          )}
+        </div>
+
+        <div className="relative">
+          <Search className="-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by path or hash..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-border/60 bg-background/60 py-2 pr-8 pl-9 text-foreground text-sm transition-colors placeholder:text-muted-foreground/60 focus:border-sky-400/50 focus:bg-background focus:outline-none focus:ring-1 focus:ring-sky-400/40"
+            aria-label="Search objects"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="-translate-y-1/2 absolute top-1/2 right-2 inline-flex items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
             </button>
           )}
         </div>
