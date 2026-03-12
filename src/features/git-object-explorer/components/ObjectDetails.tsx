@@ -33,6 +33,7 @@ import {
   formatNumber,
   shortHash,
 } from '@/features/git-object-explorer/formatters'
+import { useTheme } from '@/components/theme-provider'
 import type { IndexedObjectFile } from '@/features/git-object-explorer/useGitObjectFile'
 import { parseConventionalCommit } from '@/features/git-object-explorer/utils/conventionalCommit'
 import type { GitBlob, GitObject } from '@/git-parser'
@@ -256,9 +257,22 @@ export function ObjectDetails({
 }
 
 function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string | null }) {
+  const { theme } = useTheme()
   const bytes = blob.bytes ?? new TextEncoder().encode(blob.content)
   const type = detectBlobType(bytes, fileName)
   const extension = type.extension || extensionFromName(fileName) || 'bin'
+  const editorTheme =
+    theme === 'dark' || (theme === 'system' && document.documentElement.classList.contains('dark'))
+      ? 'vs-dark'
+      : 'vs'
+  const lineCount = useMemo(() => blob.content.split(/\r\n|\r|\n/).length, [blob.content])
+  const editorHeight = useMemo(() => {
+    const lineHeight = 20
+    const verticalPadding = 36
+    const minHeight = 180
+    const maxHeight = 540
+    return Math.min(maxHeight, Math.max(minHeight, lineCount * lineHeight + verticalPadding))
+  }, [lineCount])
   const downloadName = buildDownloadName(fileName, extension)
   const blobUrl = useMemo(() => {
     const arrayBuffer = bytes.buffer.slice(
@@ -317,11 +331,11 @@ function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string 
                 {detectLanguage(fileName, blob.content)}
               </span>
             </div>
-            <div className="h-[min(70vh,34rem)]">
+            <div style={{ height: `${editorHeight}px` }}>
               <Editor
                 language={detectLanguage(fileName, blob.content)}
                 value={blob.content}
-                theme="vs-dark"
+                theme={editorTheme}
                 options={{
                   readOnly: true,
                   minimap: { enabled: false },
@@ -329,10 +343,12 @@ function BlobContentCard({ blob, fileName }: { blob: GitBlob; fileName?: string 
                   folding: true,
                   wordWrap: 'off',
                   fontSize: 13,
+                  lineHeight: 20,
                   padding: { top: 12, bottom: 12 },
                   fontFamily: '"Fira Code", monospace',
                   mouseWheelZoom: false,
                   smoothScrolling: true,
+                  scrollBeyondLastLine: false,
                   bracketPairColorization: {
                     enabled: true,
                   },

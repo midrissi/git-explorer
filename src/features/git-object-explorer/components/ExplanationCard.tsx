@@ -19,9 +19,11 @@ import {
 export function ExplanationCard({
   explanations,
   onHashClick,
+  canHashClick,
 }: {
   explanations: string[]
   onHashClick?: (hash: string) => void
+  canHashClick?: (hash: string) => boolean
 }) {
   const seen = new Map<string, number>()
   const intro: React.ReactNode[] = []
@@ -59,17 +61,25 @@ export function ExplanationCard({
         )
       }
 
-      if (/^[0-9a-f]{7}$/i.test(part) && onHashClick) {
+      if (/^[0-9a-f]{7}$/i.test(part) && onHashClick && (canHashClick?.(part) ?? true)) {
         return (
           <button
             key={`h-${keyBase}`}
             type="button"
             onClick={() => onHashClick(part)}
-            className="cursor-pointer font-mono text-sky-500 underline decoration-dotted transition-colors hover:text-sky-400"
+            className="cursor-pointer font-mono text-sky-500 text-xs transition-colors hover:text-sky-400"
             title={`Open object ${part}`}
           >
             {part}
           </button>
+        )
+      }
+
+      if (/^[0-9a-f]{7}$/i.test(part)) {
+        return (
+          <span key={`h-${keyBase}`} className="font-mono text-muted-foreground text-xs">
+            {part}
+          </span>
         )
       }
 

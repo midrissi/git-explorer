@@ -112,6 +112,13 @@ function App() {
     [objectEntries]
   )
 
+  const canHashClick = useCallback(
+    (hash: string): boolean => {
+      return !!findObjectByHash(hash)
+    },
+    [findObjectByHash]
+  )
+
   const handleHashClick = useCallback(
     (hash: string) => {
       const entry = findObjectByHash(hash)
@@ -253,7 +260,11 @@ function App() {
                     canGoBack={canGoBack}
                     canGoForward={canGoForward}
                   />
-                  <ExplanationCard explanations={explanations} onHashClick={handleHashClick} />
+                  <ExplanationCard
+                    explanations={explanations}
+                    onHashClick={handleHashClick}
+                    canHashClick={canHashClick}
+                  />
                   <ObjectDetails
                     gitObj={gitObj}
                     fileName={fileName}
@@ -283,7 +294,11 @@ function App() {
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
               />
-              <ExplanationCard explanations={explanations} onHashClick={handleHashClick} />
+              <ExplanationCard
+                explanations={explanations}
+                onHashClick={handleHashClick}
+                canHashClick={canHashClick}
+              />
               <ObjectDetails
                 gitObj={gitObj}
                 fileName={fileName}
