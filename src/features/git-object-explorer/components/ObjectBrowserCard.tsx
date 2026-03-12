@@ -329,7 +329,7 @@ export const ObjectBrowserCard = forwardRef<
           tabIndex={0}
           ref={scrollContainerRef}
           onKeyDown={onTreeKeyDown}
-          className="max-h-[34rem] overflow-y-auto rounded-lg border border-border/60 bg-muted/20 p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="max-h-[34rem] overflow-y-auto overflow-x-hidden rounded-lg border border-border/60 bg-muted/20 p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label="Git object tree"
         >
           {grouped.length === 0 && (
@@ -385,16 +385,19 @@ export const ObjectBrowserCard = forwardRef<
                             setActiveNodeId(fileNodeId)
                             onSelectObject(entry)
                           }}
-                          className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                          className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
                             isSelected
                               ? 'bg-primary/25 text-foreground'
                               : isActive
                                 ? 'bg-muted text-foreground'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                           }`}
+                          title={entry.displayPath}
                         >
                           <GitCommitHorizontal className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                          <span className="font-mono">{entry.displayPath}</span>
+                          <span className="min-w-0 flex-1 truncate font-mono">
+                            {entry.displayPath}
+                          </span>
                         </button>
                       )
                     })}
